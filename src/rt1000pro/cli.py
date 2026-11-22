@@ -9,7 +9,7 @@ import sys
 
 from . import STOCK_260611_SHA256
 from .firmware import FirmwareError, decode_intel_hex, encode_intel_hex, extract_updater, inspect_image
-from .patches import PATCHED_260611_OPEN_RX_SHA256, PROFILES, apply_profile, manifest
+from .patches import PATCHED_SHA256, PROFILES, apply_profile, manifest
 from .protocol import dry_run, flash
 
 
@@ -62,6 +62,11 @@ def build_parser() -> argparse.ArgumentParser:
     flashing.add_argument("--timeout", type=float, default=3.0)
     flashing.add_argument("--confirm-model", required=True, help="Debe ser exactamente RT-1000PRO")
     flashing.add_argument("--yes", action="store_true", help="Confirma que aceptas el riesgo de brick")
+    flashing.add_argument(
+        "--authorized-airband",
+        action="store_true",
+        help="Confirma autorización para TX aeronáutica; obligatorio con perfiles airband-tx",
+    )
     return parser
 
 
@@ -96,8 +101,13 @@ def main(argv: list[str] | None = None) -> int:
                 )
             image = _read_image(args.image)
             digest = sha256(image).hexdigest()
-            if digest not in (STOCK_260611_SHA256, PATCHED_260611_OPEN_RX_SHA256):
-                raise FirmwareError("El flasheador solo acepta la imagen 260611 original u open-rx conocida")
+            if digest != STOCK_260611_SHA256 and digest not in PATCHED_SHA256.values():
+                raise FirmwareError("El flasheador solo acepta la imagen 260611 original o perfiles conocidos")
+            airband_hashes = {PATCHED_SHA256["airband-tx"], PATCHED_SHA256["open-rx-airband-tx"]}
+            if digest in airband_hashes and not args.authorized_airband:
+                raise FirmwareError(
+                    "Esta variante habilita TX aeronáutica: confirma tu autorización con --authorized-airband"
+                )
             print("Mantén PTT al encender para entrar en bootloader. No desconectes durante el proceso.")
             result = flash(
                 image,

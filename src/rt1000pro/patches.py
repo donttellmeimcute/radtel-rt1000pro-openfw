@@ -10,6 +10,8 @@ from . import FLASH_BASE, STOCK_260611_SHA256
 from .firmware import FirmwareError, inspect_image
 
 PATCHED_260611_OPEN_RX_SHA256 = "7f98fe67741f025c31718c804d6a7f112fa34a5b7d97fc7ddc3da0666397fcd4"
+PATCHED_260611_AIRBAND_TX_SHA256 = "9091d7e7d3d96dfec07150cff07b7de180987b9f0b71b60a8f30820f608f667c"
+PATCHED_260611_OPEN_RX_AIRBAND_TX_SHA256 = "b9ebdb8ebec047c8a1a1fe0902d663fdb26ef936e4cf05443f876942ffc203b9"
 
 
 @dataclass(frozen=True)
@@ -33,30 +35,51 @@ class Patch:
         return bytes.fromhex(self.replacement_hex)
 
 
-PROFILES: dict[str, tuple[Patch, ...]] = {
-    "open-rx": (
-        Patch(
-            name="all-band-at-boot",
-            address=0x080035E8,
-            expected_hex="02d1",
-            replacement_hex="00bf",
-            description=(
-                "Sustituye BNE por NOP tras comparar la tecla de arranque 0x0E; "
-                "activa el indicador ALL BAND ya existente en cada arranque."
-            ),
-        ),
-        Patch(
-            name="restricted-menu-access",
-            address=0x080080B8,
-            expected_hex="acd0",
-            replacement_hex="00bf",
-            description=(
-                "Sustituye BEQ por NOP después de la comparación de 16 bytes; "
-                "permite continuar en los diálogos de acceso restringido. No altera "
-                "las validaciones de frecuencia, potencia ni la función Prohibit TX."
-            ),
+AIRBAND_TX_PATCH = Patch(
+    name="airband-tx-marker-check",
+    address=0x0800810E,
+    expected_hex="07d0",
+    replacement_hex="00bf",
+    description=(
+        "Sustituye BEQ por NOP para que el marcador interno del modo aeronáutico "
+        "no fuerce la tabla general de TX. Mantiene las comprobaciones por debajo "
+        "de 108 MHz y desde 136 MHz. Uso exclusivo con autorización aeronáutica."
+    ),
+)
+
+OPEN_RX_PATCHES = (
+    Patch(
+        name="all-band-at-boot",
+        address=0x080035E8,
+        expected_hex="02d1",
+        replacement_hex="00bf",
+        description=(
+            "Sustituye BNE por NOP tras comparar la tecla de arranque 0x0E; "
+            "activa el indicador ALL BAND ya existente en cada arranque."
         ),
     ),
+    Patch(
+        name="restricted-menu-access",
+        address=0x080080B8,
+        expected_hex="acd0",
+        replacement_hex="00bf",
+        description=(
+            "Sustituye BEQ por NOP después de la comparación de 16 bytes; "
+            "permite continuar en los diálogos de acceso restringido."
+        ),
+    ),
+)
+
+PROFILES: dict[str, tuple[Patch, ...]] = {
+    "airband-tx": (AIRBAND_TX_PATCH,),
+    "open-rx": OPEN_RX_PATCHES,
+    "open-rx-airband-tx": OPEN_RX_PATCHES + (AIRBAND_TX_PATCH,),
+}
+
+PATCHED_SHA256 = {
+    "airband-tx": PATCHED_260611_AIRBAND_TX_SHA256,
+    "open-rx": PATCHED_260611_OPEN_RX_SHA256,
+    "open-rx-airband-tx": PATCHED_260611_OPEN_RX_AIRBAND_TX_SHA256,
 }
 
 
@@ -71,8 +94,8 @@ def apply_profile(
     if profile not in PROFILES:
         raise FirmwareError(f"Perfil desconocido: {profile}")
     digest = sha256(image).hexdigest()
-    if digest == PATCHED_260611_OPEN_RX_SHA256:
-        raise FirmwareError("La imagen ya contiene el perfil open-rx")
+    if digest in PATCHED_SHA256.values():
+        raise FirmwareError("La imagen ya contiene uno de los perfiles conocidos")
     if expected_sha256 is not None and digest != expected_sha256:
         raise FirmwareError(
             "Hash incompatible; el parche está bloqueado a la imagen 260611: "
@@ -93,6 +116,8 @@ def apply_profile(
         result[start:end] = patch.replacement
     output = bytes(result)
     inspect_image(output)
+    if expected_sha256 == STOCK_260611_SHA256 and sha256(output).hexdigest() != PATCHED_SHA256[profile]:
+        raise FirmwareError("La variante no coincide con el hash reproducible documentado")
     return output
 
 
@@ -103,7 +128,7 @@ def manifest(profile: str = "open-rx") -> str:
         "format": 1,
         "profile": profile,
         "stock_sha256": STOCK_260611_SHA256,
-        "patched_sha256": PATCHED_260611_OPEN_RX_SHA256,
+        "patched_sha256": PATCHED_SHA256[profile],
         "patches": [asdict(patch) for patch in PROFILES[profile]],
     }
     return json.dumps(document, ensure_ascii=False, indent=2) + "\n"

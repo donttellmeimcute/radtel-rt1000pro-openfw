@@ -8,7 +8,7 @@ Herramientas abiertas de ingeniería inversa, extracción, parcheo y actualizaci
 
 - Extractor estático del Intel HEX incrustado en el `.exe` .NET; no ejecuta el actualizador.
 - Validación de registros, checksums, direcciones, tamaño y vectores ARM Thumb.
-- Perfil `open-rx` bloqueado al hash exacto de la versión compatible.
+- Perfiles `open-rx`, `airband-tx` y `open-rx-airband-tx`, bloqueados al hash exacto de la versión compatible.
 - Generador y simulador de las 246 tramas de actualización.
 - Flasheador serie opcional con confirmaciones explícitas.
 - Pruebas automáticas y notas de ingeniería inversa.
@@ -18,7 +18,16 @@ Herramientas abiertas de ingeniería inversa, extracción, parcheo y actualizaci
 1. **ALL BAND al arrancar:** activa el modo de banda completa ya presente en el firmware.
 2. **Acceso a menús restringidos:** omite el resultado de la comparación de contraseña en el diálogo común de acceso.
 
-No se modifican directamente las tablas de frecuencias, la potencia, la función `Prohibit TX` ni otras comprobaciones de RF. El efecto completo del modo ALL BAND sobre el hardware todavía no está validado. **No transmitas fuera de las bandas, modos o potencias permitidos en tu jurisdicción y licencia.**
+Este perfil no modifica directamente las tablas de frecuencias, la potencia ni la función `Prohibit TX`. El efecto completo del modo ALL BAND sobre el hardware todavía no está validado. **No transmitas fuera de las bandas, modos o potencias permitidos en tu jurisdicción y licencia.**
+
+## Perfiles de transmisión aeronáutica
+
+- `airband-tx`: aplica únicamente el cambio de Air TX.
+- `open-rx-airband-tx`: combina ese cambio con las dos modificaciones de `open-rx`.
+
+El parche evita que el marcador interno del modo aeronáutico fuerce la tabla general de restricciones. Conserva las comprobaciones para frecuencias inferiores a 108 MHz y desde 136 MHz, y no cambia potencia ni calibración.
+
+> **Advertencia específica:** la banda aeronáutica es crítica para la seguridad. Estos perfiles son experimentales y solo deben generarse para pruebas autorizadas, inicialmente con carga fantasma. La transmisión al aire requiere la licencia y los permisos correspondientes. El flasheador exige además `--authorized-airband` para estas variantes.
 
 ## Compatibilidad y hashes
 
@@ -28,6 +37,8 @@ Solo se admite la imagen de 246 KiB extraída del paquete `Radtel_RT-1000Pro_Upd
 |---|---|
 | Original 260611 | `53005e01c88180bcec5d2c6e2d928a8464140f660e93cc66c6efcd2157827e32` |
 | `open-rx` | `7f98fe67741f025c31718c804d6a7f112fa34a5b7d97fc7ddc3da0666397fcd4` |
+| `airband-tx` | `9091d7e7d3d96dfec07150cff07b7de180987b9f0b71b60a8f30820f608f667c` |
+| `open-rx-airband-tx` | `b9ebdb8ebec047c8a1a1fe0902d663fdb26ef936e4cf05443f876942ffc203b9` |
 
 No uses el parche con otra versión ni con otro modelo. La comprobación de hash y de los bytes originales lo impedirá por defecto.
 
@@ -58,6 +69,14 @@ rt1000pro patch rt1000pro-260611-stock.bin \
   --manifest open-rx-manifest.json
 
 rt1000pro simulate rt1000pro-260611-open-rx.bin
+
+# Solo el cambio Air TX:
+rt1000pro patch rt1000pro-260611-stock.bin \
+  --profile airband-tx \
+  -o rt1000pro-260611-airband-tx.bin \
+  --manifest airband-tx-manifest.json
+
+rt1000pro simulate rt1000pro-260611-airband-tx.bin
 ```
 
 Los archivos `.exe`, `.zip`, `.bin` y `.hex` están excluidos por `.gitignore` para evitar publicar accidentalmente material propietario.
@@ -75,7 +94,7 @@ rt1000pro flash rt1000pro-260611-open-rx.bin \
   --confirm-model RT-1000PRO --yes
 ```
 
-En Windows, sustituye el puerto por ejemplo por `COM4`. El flasheador solo acepta los dos hashes conocidos indicados arriba. Consulta [seguridad y flasheo](docs/seguridad-y-flasheo.md) antes de usarlo.
+Para una variante aeronáutica debe añadirse `--authorized-airband` al comando de flasheo. En Windows, sustituye el puerto por ejemplo por `COM4`. El flasheador solo acepta los hashes conocidos indicados arriba. Consulta [seguridad y flasheo](docs/seguridad-y-flasheo.md) antes de usarlo.
 
 ## Documentación
 

@@ -1,6 +1,6 @@
 """Herramientas abiertas para investigar el firmware del Radtel RT-1000Pro."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 FLASH_BASE = 0x08002800
 FLASH_SIZE = 246 * 1024

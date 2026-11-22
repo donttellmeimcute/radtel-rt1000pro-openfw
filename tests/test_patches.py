@@ -10,7 +10,8 @@ from rt1000pro.patches import PROFILES, apply_profile, manifest
 def compatible_blank() -> bytes:
     image = bytearray(FLASH_SIZE)
     struct.pack_into("<II", image, 0, 0x2000AEC8, FLASH_BASE | 1)
-    for patch in PROFILES["open-rx"]:
+    unique_patches = {patch for patches in PROFILES.values() for patch in patches}
+    for patch in unique_patches:
         image[patch.offset:patch.offset + len(patch.expected)] = patch.expected
     return bytes(image)
 
@@ -40,3 +41,20 @@ def test_patch_is_hash_locked_by_default():
     with pytest.raises(FirmwareError, match="Hash incompatible"):
         apply_profile(compatible_blank())
     assert STOCK_260611_SHA256 in manifest()
+
+
+
+def test_airband_patch_is_specific_and_composable():
+    original = compatible_blank()
+    airband = apply_profile(original, "airband-tx", expected_sha256=None)
+    patch = PROFILES["airband-tx"][0]
+    assert airband[patch.offset:patch.offset + 2] == patch.replacement
+    assert airband[:patch.offset] == original[:patch.offset]
+    assert airband[patch.offset + 2:] == original[patch.offset + 2:]
+
+    combined = apply_profile(original, "open-rx-airband-tx", expected_sha256=None)
+    open_rx = apply_profile(original, "open-rx", expected_sha256=None)
+    assert combined[:patch.offset] == open_rx[:patch.offset]
+    assert combined[patch.offset:patch.offset + 2] == patch.replacement
+    assert combined[patch.offset + 2:] == open_rx[patch.offset + 2:]
+    assert '"profile": "airband-tx"' in manifest("airband-tx")

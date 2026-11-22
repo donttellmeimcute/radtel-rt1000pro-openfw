@@ -94,19 +94,46 @@ La función de `0x08007FD4` gestiona un diálogo titulado `Password`. En `0x0800
 
 El parche sustituye `BEQ` por `NOP`, por lo que el diálogo continúa independientemente del resultado. No revela ni almacena una contraseña y no modifica las rutinas de RF.
 
-### 3.3 Restricciones no modificadas
+### 3.3 Validación de TX en Airband
 
-Las cadenas `Prohibit TX` tienen varias rutinas asociadas y distintas causas de bloqueo. No se ha generalizado un bypass para ellas. Tampoco se han cambiado límites numéricos de frecuencia, potencia, calibración o tablas de banda. El comportamiento de RF de la variante sigue requiriendo validación en hardware y uso legal.
+La función `0x080080FC` recibe una frecuencia y consulta el valor actual en `0x20001098`. Sus constantes `10.800.000` y `13.600.000` usan la misma representación de 10 Hz observada en otras tablas, equivalentes a 108 y 136 MHz.
+
+```text
+0800810A  ldr r5, =0x1122ABCD
+0800810C  cmp r0, r5
+0800810E  beq 0x08008120     ; fuerza tabla general con el marcador Air
+08008110  ldr r0, =10800000
+08008112  cmp r1, r0
+08008114  blo 0x08008120     ; por debajo de 108 MHz: tabla
+08008116  ldr r0, =13600000
+08008118  cmp r1, r0
+0800811A  bhs 0x08008120     ; desde 136 MHz: tabla
+0800811C  movs r0, #0        ; camino no restringido
+0800811E  pop {r4, r5, pc}
+```
+
+La tabla general de `0x08008120` recorre cuatro intervalos habilitables. El perfil `airband-tx` cambia solamente el `BEQ` de `0x0800810E` por `NOP`. Así, el marcador `0x1122ABCD` ya no impide usar el camino existente de 108–136 MHz. Las comparaciones inferiores y superiores se conservan.
+
+Este análisis es estático: no demuestra que el hardware, la modulación, la potencia o la calibración sean aptos para transmitir. Tampoco elimina otras causas independientes de `Prohibit TX`.
+
+### 3.4 Otras restricciones no modificadas
+
+Las cadenas `Prohibit TX` tienen varias rutinas asociadas y distintas causas de bloqueo. No se ha generalizado un bypass para ellas. Tampoco se han cambiado potencia, calibración o tablas de banda. El comportamiento de RF de las variantes sigue requiriendo validación en hardware y uso legal.
 
 ## 4. Reproducibilidad
 
-El perfil aplica dos sustituciones de dos bytes, sin cambiar el tamaño:
+Los perfiles aplican sustituciones de dos bytes, sin cambiar el tamaño:
 
 | Dirección | Original | Modificado | Finalidad |
 |---|---|---|---|
 | `0x080035E8` | `02 D1` | `00 BF` | ALL BAND en cada arranque |
 | `0x080080B8` | `AC D0` | `00 BF` | Continuar tras el diálogo restringido |
+| `0x0800810E` | `07 D0` | `00 BF` | No forzar la tabla general por el marcador Air TX |
 
-La imagen `open-rx` resultante tiene SHA-256 `7f98fe67741f025c31718c804d6a7f112fa34a5b7d97fc7ddc3da0666397fcd4`.
+Hashes reproducibles:
+
+- `open-rx`: `7f98fe67741f025c31718c804d6a7f112fa34a5b7d97fc7ddc3da0666397fcd4`.
+- `airband-tx`: `9091d7e7d3d96dfec07150cff07b7de180987b9f0b71b60a8f30820f608f667c`.
+- `open-rx-airband-tx`: `b9ebdb8ebec047c8a1a1fe0902d663fdb26ef936e4cf05443f876942ffc203b9`.
 
 Estas direcciones son específicas de 260611. No deben reutilizarse en otra compilación.

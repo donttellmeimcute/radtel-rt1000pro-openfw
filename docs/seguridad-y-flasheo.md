@@ -2,7 +2,7 @@
 
 ## Estado de validación
 
-La versión `open-rx` se ha validado únicamente mediante:
+Las variantes `open-rx`, `airband-tx` y `open-rx-airband-tx` se han validado únicamente mediante:
 
 - extracción reproducible del paquete original;
 - comprobación de todos los checksums Intel HEX;
@@ -23,11 +23,22 @@ La versión `open-rx` se ha validado únicamente mediante:
 
 Si no dispones de recuperación, lo prudente es no flashear esta versión experimental.
 
+## Riesgo específico de Airband
+
+Los perfiles `airband-tx` y `open-rx-airband-tx` eliminan una comprobación de software asociada al modo aeronáutico. Esto no certifica que el equipo cumpla la normativa de emisión, estabilidad, espectro o modulación aeronáutica.
+
+- No conectes una antena para las primeras pruebas: utiliza una carga fantasma adecuada y atenuación/instrumentación.
+- No transmitas al aire sin una autorización explícita y vigente para esa banda y ese equipo.
+- No uses la variante cerca de operaciones aeronáuticas, aeropuertos o sistemas de navegación.
+- Restaura el firmware original si observas comportamiento inesperado.
+- El flasheador exige `--authorized-airband` para estas imágenes; esa confirmación no sustituye ningún permiso legal.
+
 ## Límites deliberados del proyecto
 
 - No se publica el `.exe`, el ZIP ni imágenes propietarias.
 - No se afirma que el firmware sea una reimplementación open source completa.
-- No se eliminan de forma generalizada `Prohibit TX`, límites de potencia o validaciones de frecuencia.
+- No se elimina de forma generalizada `Prohibit TX`; el cambio aeronáutico se limita al desvío documentado en `0x0800810E`.
+- No se modifican potencia, calibración ni los límites inferiores de 108 MHz y superior de 136 MHz.
 - No se acepta otra versión mediante los comandos normales de parcheo o flasheo.
 - No se ejecuta el actualizador durante la extracción.
 
