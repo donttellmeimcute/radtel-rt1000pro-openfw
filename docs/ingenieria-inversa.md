@@ -98,6 +98,8 @@ El parche sustituye `BEQ` por `NOP`, por lo que el diálogo continúa independie
 
 La función `0x080080FC` recibe una frecuencia y consulta el valor actual en `0x20001098`. Sus constantes `10.800.000` y `13.600.000` usan la misma representación de 10 Hz observada en otras tablas, equivalentes a 108 y 136 MHz.
 
+Los llamadores establecen la semántica del retorno: en `0x0800F498` y `0x0800F522`, un resultado cero conduce al mensaje `out of range`; en otros caminos de PTT, cero conduce a `Prohibit TX`. Por tanto, **cero es bloqueo y uno permite continuar**, sujeto a otros interbloqueos.
+
 ```text
 0800810A  ldr r5, =0x1122ABCD
 0800810C  cmp r0, r5
@@ -108,13 +110,20 @@ La función `0x080080FC` recibe una frecuencia y consulta el valor actual en `0x
 08008116  ldr r0, =13600000
 08008118  cmp r1, r0
 0800811A  bhs 0x08008120     ; desde 136 MHz: tabla
-0800811C  movs r0, #0        ; camino no restringido
+0800811C  movs r0, #0        ; original: out of range / bloqueo
 0800811E  pop {r4, r5, pc}
 ```
 
-La tabla general de `0x08008120` recorre cuatro intervalos habilitables. El perfil `airband-tx` cambia solamente el `BEQ` de `0x0800810E` por `NOP`. Así, el marcador `0x1122ABCD` ya no impide usar el camino existente de 108–136 MHz. Las comparaciones inferiores y superiores se conservan.
+La tabla general de `0x08008120` recorre cuatro intervalos habilitables y también devuelve cero cuando la frecuencia queda dentro de uno de ellos. El perfil corregido `airband-tx` aplica dos cambios:
+
+1. `0x0800810E`: `BEQ` → `NOP`, para que el marcador Air no fuerce la tabla general.
+2. `0x0800811C`: `MOVS R0,#0` → `MOVS R0,#1`, para que el intervalo 108–136 MHz no se clasifique como `out of range`.
+
+Las comparaciones inferiores y superiores se conservan. Se localizaron siete llamadas al validador (`0x0800F498`, `0x0800F522`, `0x0801064E`, `0x0802369E`, `0x08024482`, `0x0802482A`, `0x08025400`), por lo que el cambio cubre todos esos caminos sin modificar individualmente sus otros controles.
 
 Este análisis es estático: no demuestra que el hardware, la modulación, la potencia o la calibración sean aptos para transmitir. Tampoco elimina otras causas independientes de `Prohibit TX`.
+
+Las versiones 0.2/0.3 aplicaban solo el primer cambio y describían el retorno al revés. Sus imágenes Airband están retiradas y sus hashes se rechazan explícitamente.
 
 ### 3.4 Otras restricciones no modificadas
 
@@ -129,11 +138,12 @@ Los perfiles aplican sustituciones de dos bytes, sin cambiar el tamaño:
 | `0x080035E8` | `02 D1` | `00 BF` | ALL BAND en cada arranque |
 | `0x080080B8` | `AC D0` | `00 BF` | Continuar tras el diálogo restringido |
 | `0x0800810E` | `07 D0` | `00 BF` | No forzar la tabla general por el marcador Air TX |
+| `0x0800811C` | `00 20` | `01 20` | Devolver “no fuera de rango” en 108–136 MHz |
 
 Hashes reproducibles:
 
 - `open-rx`: `7f98fe67741f025c31718c804d6a7f112fa34a5b7d97fc7ddc3da0666397fcd4`.
-- `airband-tx`: `9091d7e7d3d96dfec07150cff07b7de180987b9f0b71b60a8f30820f608f667c`.
-- `open-rx-airband-tx`: `b9ebdb8ebec047c8a1a1fe0902d663fdb26ef936e4cf05443f876942ffc203b9`.
+- `airband-tx`: `54d740bc045987f5f42ca3faa13c796c9b308470ef8c22a2df924af44964f8cb`.
+- `open-rx-airband-tx`: `31acf6d6426043a58eb6b53433e110db7ccab07eb9cbf2344963404eda8ee9e3`.
 
 Estas direcciones son específicas de 260611. No deben reutilizarse en otra compilación.

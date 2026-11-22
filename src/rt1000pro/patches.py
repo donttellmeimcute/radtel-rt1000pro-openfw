@@ -10,8 +10,14 @@ from . import FLASH_BASE, STOCK_260611_SHA256
 from .firmware import FirmwareError, inspect_image
 
 PATCHED_260611_OPEN_RX_SHA256 = "7f98fe67741f025c31718c804d6a7f112fa34a5b7d97fc7ddc3da0666397fcd4"
-PATCHED_260611_AIRBAND_TX_SHA256 = "9091d7e7d3d96dfec07150cff07b7de180987b9f0b71b60a8f30820f608f667c"
-PATCHED_260611_OPEN_RX_AIRBAND_TX_SHA256 = "b9ebdb8ebec047c8a1a1fe0902d663fdb26ef936e4cf05443f876942ffc203b9"
+PATCHED_260611_AIRBAND_TX_SHA256 = "54d740bc045987f5f42ca3faa13c796c9b308470ef8c22a2df924af44964f8cb"
+PATCHED_260611_OPEN_RX_AIRBAND_TX_SHA256 = "31acf6d6426043a58eb6b53433e110db7ccab07eb9cbf2344963404eda8ee9e3"
+
+# Versiones 0.2/0.3: interpretaban incorrectamente el valor de retorno del validador.
+REVOKED_SHA256 = {
+    "9091d7e7d3d96dfec07150cff07b7de180987b9f0b71b60a8f30820f608f667c",
+    "b9ebdb8ebec047c8a1a1fe0902d663fdb26ef936e4cf05443f876942ffc203b9",
+}
 
 
 @dataclass(frozen=True)
@@ -35,17 +41,30 @@ class Patch:
         return bytes.fromhex(self.replacement_hex)
 
 
-AIRBAND_TX_PATCH = Patch(
+AIRBAND_TX_MARKER_PATCH = Patch(
     name="airband-tx-marker-check",
     address=0x0800810E,
     expected_hex="07d0",
     replacement_hex="00bf",
     description=(
         "Sustituye BEQ por NOP para que el marcador interno del modo aeronáutico "
-        "no fuerce la tabla general de TX. Mantiene las comprobaciones por debajo "
-        "de 108 MHz y desde 136 MHz. Uso exclusivo con autorización aeronáutica."
+        "no desvíe el camino 108–136 MHz a la tabla general."
     ),
 )
+
+AIRBAND_TX_RETURN_PATCH = Patch(
+    name="airband-tx-not-out-of-range",
+    address=0x0800811C,
+    expected_hex="0020",
+    replacement_hex="0120",
+    description=(
+        "Cambia MOVS R0,#0 por MOVS R0,#1 en el camino 108–136 MHz. "
+        "Los llamadores confirman que cero significa 'out of range' y bloqueo; "
+        "uno permite continuar, sujeto a los demás interbloqueos independientes."
+    ),
+)
+
+AIRBAND_TX_PATCHES = (AIRBAND_TX_MARKER_PATCH, AIRBAND_TX_RETURN_PATCH)
 
 OPEN_RX_PATCHES = (
     Patch(
@@ -71,9 +90,9 @@ OPEN_RX_PATCHES = (
 )
 
 PROFILES: dict[str, tuple[Patch, ...]] = {
-    "airband-tx": (AIRBAND_TX_PATCH,),
+    "airband-tx": AIRBAND_TX_PATCHES,
     "open-rx": OPEN_RX_PATCHES,
-    "open-rx-airband-tx": OPEN_RX_PATCHES + (AIRBAND_TX_PATCH,),
+    "open-rx-airband-tx": OPEN_RX_PATCHES + AIRBAND_TX_PATCHES,
 }
 
 PATCHED_SHA256 = {
@@ -94,6 +113,8 @@ def apply_profile(
     if profile not in PROFILES:
         raise FirmwareError(f"Perfil desconocido: {profile}")
     digest = sha256(image).hexdigest()
+    if digest in REVOKED_SHA256:
+        raise FirmwareError("Esta imagen Airband anterior está retirada; regenera desde el firmware original")
     if digest in PATCHED_SHA256.values():
         raise FirmwareError("La imagen ya contiene uno de los perfiles conocidos")
     if expected_sha256 is not None and digest != expected_sha256:

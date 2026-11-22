@@ -25,7 +25,7 @@ Si no dispones de recuperación, lo prudente es no flashear esta versión experi
 
 ## Procedimiento conservador incorporado
 
-1. Para Airband, utiliza solamente `airband-tx`: dos bytes cambiados, sin acumular los parches de `open-rx`.
+1. Para Airband, utiliza solamente `airband-tx`: dos instrucciones corregidas, sin acumular los parches de `open-rx`.
 2. Ejecuta `rt1000pro preflight IMAGEN` y comprueba manualmente que el perfil y SHA-256 son los esperados.
 3. El flasheo exige `--recovery-confirmed` y `--power-confirmed`, además del modelo y la aceptación del riesgo.
 4. Airband exige también `--authorized-airband`.
@@ -39,6 +39,8 @@ Las confirmaciones no son comprobaciones físicas. Si no has realizado realmente
 
 Los perfiles `airband-tx` y `open-rx-airband-tx` eliminan una comprobación de software asociada al modo aeronáutico. Esto no certifica que el equipo cumpla la normativa de emisión, estabilidad, espectro o modulación aeronáutica.
 
+**No uses imágenes Airband generadas con las versiones 0.2/0.3.** Sus hashes están retirados por una corrección de la semántica del validador; genera de nuevo desde el firmware original con la versión actual.
+
 - No conectes una antena para las primeras pruebas: utiliza una carga fantasma adecuada y atenuación/instrumentación.
 - No transmitas al aire sin una autorización explícita y vigente para esa banda y ese equipo.
 - No uses la variante cerca de operaciones aeronáuticas, aeropuertos o sistemas de navegación.
@@ -49,7 +51,7 @@ Los perfiles `airband-tx` y `open-rx-airband-tx` eliminan una comprobación de s
 
 - No se publica el `.exe`, el ZIP ni imágenes propietarias.
 - No se afirma que el firmware sea una reimplementación open source completa.
-- No se elimina de forma generalizada `Prohibit TX`; el cambio aeronáutico se limita al desvío documentado en `0x0800810E`.
+- No se elimina de forma generalizada `Prohibit TX`; el cambio aeronáutico se limita a las instrucciones documentadas en `0x0800810E` y `0x0800811C`.
 - No se modifican potencia, calibración ni los límites inferiores de 108 MHz y superior de 136 MHz.
 - No se acepta otra versión mediante los comandos normales de parcheo o flasheo.
 - No se ejecuta el actualizador durante la extracción.

@@ -9,7 +9,7 @@ import sys
 
 from . import STOCK_260611_SHA256
 from .firmware import FirmwareError, decode_intel_hex, extract_updater, inspect_image
-from .patches import PATCHED_SHA256, PROFILES, apply_profile, manifest
+from .patches import PATCHED_SHA256, PROFILES, REVOKED_SHA256, apply_profile, manifest
 from .protocol import dry_run, flash
 
 AIRBAND_PROFILES = frozenset(("airband-tx", "open-rx-airband-tx"))
@@ -38,6 +38,8 @@ def _identify(image: bytes) -> tuple[str, str]:
     digest = sha256(image).hexdigest()
     if digest == STOCK_260611_SHA256:
         return digest, "stock-260611"
+    if digest in REVOKED_SHA256:
+        raise FirmwareError("Imagen Airband retirada por una corrección del análisis; regenera desde el original")
     for profile, known_digest in PATCHED_SHA256.items():
         if digest == known_digest:
             return digest, profile

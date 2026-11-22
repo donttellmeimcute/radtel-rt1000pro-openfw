@@ -47,14 +47,19 @@ def test_patch_is_hash_locked_by_default():
 def test_airband_patch_is_specific_and_composable():
     original = compatible_blank()
     airband = apply_profile(original, "airband-tx", expected_sha256=None)
-    patch = PROFILES["airband-tx"][0]
-    assert airband[patch.offset:patch.offset + 2] == patch.replacement
-    assert airband[:patch.offset] == original[:patch.offset]
-    assert airband[patch.offset + 2:] == original[patch.offset + 2:]
+    patches = PROFILES["airband-tx"]
+    expected = sorted(
+        patch.offset + index
+        for patch in patches
+        for index, (a, b) in enumerate(zip(patch.expected, patch.replacement))
+        if a != b
+    )
+    assert [i for i, (a, b) in enumerate(zip(original, airband)) if a != b] == expected
+    assert all(airband[p.offset:p.offset + 2] == p.replacement for p in patches)
 
     combined = apply_profile(original, "open-rx-airband-tx", expected_sha256=None)
-    open_rx = apply_profile(original, "open-rx", expected_sha256=None)
-    assert combined[:patch.offset] == open_rx[:patch.offset]
-    assert combined[patch.offset:patch.offset + 2] == patch.replacement
-    assert combined[patch.offset + 2:] == open_rx[patch.offset + 2:]
+    expected_combined = bytearray(apply_profile(original, "open-rx", expected_sha256=None))
+    for patch in patches:
+        expected_combined[patch.offset:patch.offset + 2] = patch.replacement
+    assert combined == bytes(expected_combined)
     assert '"profile": "airband-tx"' in manifest("airband-tx")

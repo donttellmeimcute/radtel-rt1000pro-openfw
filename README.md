@@ -25,7 +25,9 @@ Este perfil no modifica directamente las tablas de frecuencias, la potencia ni l
 - `airband-tx`: aplica únicamente el cambio de Air TX.
 - `open-rx-airband-tx`: combina ese cambio con las dos modificaciones de `open-rx`.
 
-El parche evita que el marcador interno del modo aeronáutico fuerce la tabla general de restricciones. Conserva las comprobaciones para frecuencias inferiores a 108 MHz y desde 136 MHz, y no cambia potencia ni calibración.
+El parche evita que el marcador interno del modo aeronáutico fuerce la tabla general y devuelve `1` —camino no marcado como “out of range”— en el intervalo 108–136 MHz. Conserva las comprobaciones para frecuencias inferiores a 108 MHz y desde 136 MHz, y no cambia potencia ni calibración. Las siete llamadas al validador pasan por esta rutina; otros interbloqueos generales permanecen.
+
+> **Corrección:** las imágenes Airband de las versiones 0.2/0.3 están retiradas porque interpretaban incorrectamente el valor de retorno. La herramienta rechaza sus hashes; regenera desde el firmware original.
 
 > **Advertencia específica:** la banda aeronáutica es crítica para la seguridad. Estos perfiles son experimentales y solo deben generarse para pruebas autorizadas, inicialmente con carga fantasma. La transmisión al aire requiere la licencia y los permisos correspondientes. El flasheador exige además `--authorized-airband` para estas variantes.
 
@@ -37,8 +39,8 @@ Solo se admite la imagen de 246 KiB extraída del paquete `Radtel_RT-1000Pro_Upd
 |---|---|
 | Original 260611 | `53005e01c88180bcec5d2c6e2d928a8464140f660e93cc66c6efcd2157827e32` |
 | `open-rx` | `7f98fe67741f025c31718c804d6a7f112fa34a5b7d97fc7ddc3da0666397fcd4` |
-| `airband-tx` | `9091d7e7d3d96dfec07150cff07b7de180987b9f0b71b60a8f30820f608f667c` |
-| `open-rx-airband-tx` | `b9ebdb8ebec047c8a1a1fe0902d663fdb26ef936e4cf05443f876942ffc203b9` |
+| `airband-tx` | `54d740bc045987f5f42ca3faa13c796c9b308470ef8c22a2df924af44964f8cb` |
+| `open-rx-airband-tx` | `31acf6d6426043a58eb6b53433e110db7ccab07eb9cbf2344963404eda8ee9e3` |
 
 No uses el parche con otra versión ni con otro modelo. La comprobación de hash y de los bytes originales lo impedirá por defecto.
 
