@@ -81,20 +81,25 @@ rt1000pro simulate rt1000pro-260611-airband-tx.bin
 
 Los archivos `.exe`, `.zip`, `.bin` y `.hex` están excluidos por `.gitignore` para evitar publicar accidentalmente material propietario.
 
-## Flasheo
+## Flasheo conservador
 
-**No recomiendo flashear esta primera variante hasta disponer de una copia integral de recuperación y validación independiente en hardware.** Una interrupción o una imagen incompatible puede dejar la radio inutilizable.
+**No flashees sin una copia integral y una restauración externa ya comprobada.** Una interrupción o una imagen incompatible puede dejar la radio inutilizable. Para minimizar cambios, usa `airband-tx` solamente en lugar de acumular perfiles.
 
-El programa original indica este procedimiento de bootloader: conectar el cable, mantener PTT al encender y después iniciar la actualización. El puerto trabaja a 115200 baudios, 8N1, con DTR activo.
+El comando `preflight` identifica el hash, valida la imagen y genera las 246 tramas sin abrir el puerto. El flasheo real exige confirmaciones de modelo, riesgo, recuperación y alimentación; Airband requiere además autorización explícita. Cada escritura debe completarse y recibir ACK, se respetan pausas conservadoras del actualizador original y **no hay reintentos automáticos**.
 
 ```bash
-rt1000pro simulate rt1000pro-260611-open-rx.bin
-rt1000pro flash rt1000pro-260611-open-rx.bin \
+rt1000pro preflight rt1000pro-260611-airband-tx.bin
+
+rt1000pro flash rt1000pro-260611-airband-tx.bin \
   --port /dev/ttyUSB0 \
-  --confirm-model RT-1000PRO --yes
+  --confirm-model RT-1000PRO --yes \
+  --recovery-confirmed --power-confirmed \
+  --authorized-airband
 ```
 
-Para una variante aeronáutica debe añadirse `--authorized-airband` al comando de flasheo. En Windows, sustituye el puerto por ejemplo por `COM4`. El flasheador solo acepta los hashes conocidos indicados arriba. Consulta [seguridad y flasheo](docs/seguridad-y-flasheo.md) antes de usarlo.
+El programa original indica este procedimiento de bootloader: conectar el cable, mantener PTT al encender y después iniciar la actualización. El puerto trabaja a 115200 baudios, 8N1, con DTR activo. En Windows, sustituye el puerto por ejemplo por `COM4`.
+
+Estas confirmaciones son declaraciones del operador: la herramienta no puede verificar físicamente el respaldo, la alimentación ni la licencia. Consulta [seguridad y flasheo](docs/seguridad-y-flasheo.md) antes de usarlo.
 
 ## Documentación
 

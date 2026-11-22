@@ -8,9 +8,11 @@ from pathlib import Path
 import sys
 
 from . import STOCK_260611_SHA256
-from .firmware import FirmwareError, decode_intel_hex, encode_intel_hex, extract_updater, inspect_image
+from .firmware import FirmwareError, decode_intel_hex, extract_updater, inspect_image
 from .patches import PATCHED_SHA256, PROFILES, apply_profile, manifest
 from .protocol import dry_run, flash
+
+AIRBAND_PROFILES = frozenset(("airband-tx", "open-rx-airband-tx"))
 
 
 def _read_image(path: str) -> bytes:
@@ -30,6 +32,27 @@ def _print_info(image: bytes, records: int | None = None) -> None:
     print(f"Reset Thumb:   0x{info.reset_vector:08X}")
     if info.records is not None:
         print(f"Registros HEX: {info.records}")
+
+
+def _identify(image: bytes) -> tuple[str, str]:
+    digest = sha256(image).hexdigest()
+    if digest == STOCK_260611_SHA256:
+        return digest, "stock-260611"
+    for profile, known_digest in PATCHED_SHA256.items():
+        if digest == known_digest:
+            return digest, profile
+    raise FirmwareError("Imagen desconocida; solo se admiten la versión 260611 y perfiles documentados")
+
+
+def _preflight(image: bytes) -> tuple[str, str]:
+    """Validación estática y de tramas; nunca abre el puerto serie."""
+    digest, profile = _identify(image)
+    result = dry_run(image)
+    _print_info(image)
+    print(f"Perfil:        {profile}")
+    print(f"Simulación:    {result.blocks}/{result.blocks} tramas válidas")
+    print(f"TX aeronáutica: {'SÍ' if profile in AIRBAND_PROFILES else 'no modificada'}")
+    return digest, profile
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,12 +79,25 @@ def build_parser() -> argparse.ArgumentParser:
     simulate = sub.add_parser("simulate", help="Genera y valida las 246 tramas sin abrir el puerto")
     simulate.add_argument("image")
 
+    preflight = sub.add_parser("preflight", help="Comprobación conservadora sin abrir el puerto serie")
+    preflight.add_argument("image")
+
     flashing = sub.add_parser("flash", help="Flashea por serie; operación con riesgo de brick")
     flashing.add_argument("image")
     flashing.add_argument("--port", required=True, help="Por ejemplo COM4 o /dev/ttyUSB0")
     flashing.add_argument("--timeout", type=float, default=3.0)
     flashing.add_argument("--confirm-model", required=True, help="Debe ser exactamente RT-1000PRO")
     flashing.add_argument("--yes", action="store_true", help="Confirma que aceptas el riesgo de brick")
+    flashing.add_argument(
+        "--recovery-confirmed",
+        action="store_true",
+        help="Confirma respaldo integral y restauración externa ya comprobada",
+    )
+    flashing.add_argument(
+        "--power-confirmed",
+        action="store_true",
+        help="Confirma batería, alimentación y cable estables",
+    )
     flashing.add_argument(
         "--authorized-airband",
         action="store_true",
@@ -90,32 +126,44 @@ def main(argv: list[str] | None = None) -> int:
             _print_info(result)
             print(f"Variante guardada en: {args.output}")
         elif args.command == "simulate":
-            result = dry_run(_read_image(args.image))
-            print(f"Simulación correcta: {result.blocks} bloques, {result.bytes_sent} bytes de payload")
-            print(f"SHA-256: {sha256(_read_image(args.image)).hexdigest()}")
-        elif args.command == "flash":
-            if args.confirm_model != "RT-1000PRO" or not args.yes:
-                raise FirmwareError(
-                    "Flasheo no confirmado: usa --confirm-model RT-1000PRO --yes "
-                    "solo con el modelo exacto y una copia de recuperación"
-                )
             image = _read_image(args.image)
-            digest = sha256(image).hexdigest()
-            if digest != STOCK_260611_SHA256 and digest not in PATCHED_SHA256.values():
-                raise FirmwareError("El flasheador solo acepta la imagen 260611 original o perfiles conocidos")
-            airband_hashes = {PATCHED_SHA256["airband-tx"], PATCHED_SHA256["open-rx-airband-tx"]}
-            if digest in airband_hashes and not args.authorized_airband:
+            result = dry_run(image)
+            print(f"Simulación correcta: {result.blocks} bloques, {result.bytes_sent} bytes de payload")
+            print(f"SHA-256: {sha256(image).hexdigest()}")
+        elif args.command == "preflight":
+            _, profile = _preflight(_read_image(args.image))
+            print("\nAntes de flashear debes tener:")
+            print("- respaldo integral de flash, bootloader, configuración y calibración;")
+            print("- restauración externa ya probada, alimentación estable y cable verificado;")
+            print("- una unidad de repuesto, no una radio usada para comunicaciones críticas.")
+            if profile in AIRBAND_PROFILES:
+                print("- autorización aeronáutica y plan de pruebas con carga fantasma, sin antena.")
+            print("\nLa comprobación ha pasado, pero NO demuestra que flashear sea seguro.")
+        elif args.command == "flash":
+            image = _read_image(args.image)
+            _, profile = _preflight(image)
+            if args.confirm_model != "RT-1000PRO" or not args.yes:
+                raise FirmwareError("Faltan --confirm-model RT-1000PRO y/o --yes")
+            if not args.recovery_confirmed:
+                raise FirmwareError(
+                    "Flasheo bloqueado: confirma respaldo y restauración externa con --recovery-confirmed"
+                )
+            if not args.power_confirmed:
+                raise FirmwareError("Flasheo bloqueado: confirma alimentación y cable con --power-confirmed")
+            if profile in AIRBAND_PROFILES and not args.authorized_airband:
                 raise FirmwareError(
                     "Esta variante habilita TX aeronáutica: confirma tu autorización con --authorized-airband"
                 )
-            print("Mantén PTT al encender para entrar en bootloader. No desconectes durante el proceso.")
+            print("\nMantén PTT al encender para entrar en bootloader.")
+            print("No hay lectura posterior ni reintentos automáticos. No interrumpas el proceso.")
             result = flash(
                 image,
                 args.port,
                 timeout=args.timeout,
                 progress=lambda done, total: print(f"\rBloques: {done}/{total}", end="", flush=True),
             )
-            print(f"\nFlasheo completado: {result.blocks} bloques")
+            print(f"\nFlasheo completado con ACK en los {result.blocks} bloques")
+            print("Antes de usar RF, reinicia y valida primero recepción, menús y recuperación.")
         return 0
     except (FirmwareError, OSError, UnicodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)

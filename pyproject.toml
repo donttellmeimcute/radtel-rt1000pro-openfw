@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rt1000pro-openfw"
-version = "0.2.0"
+version = "0.3.0"
 description = "Herramientas abiertas de análisis, parcheo y actualización para Radtel RT-1000Pro"
 readme = "README.md"
 requires-python = ">=3.10"

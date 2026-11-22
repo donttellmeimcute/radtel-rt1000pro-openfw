@@ -16,6 +16,9 @@ ACK = 0x06
 ERROR = 0xFF
 BLOCK_SIZE = 1024
 BLOCK_COUNT = FLASH_SIZE // BLOCK_SIZE
+CONNECT_DELAY = 0.050
+UPDATE_DELAY = 0.010
+BLOCK_DELAY = 0.010
 
 
 def packet_checksum(packet_without_checksum: bytes) -> int:
@@ -61,13 +64,21 @@ def flash(
     timeout: float = 3.0,
     progress: Callable[[int, int], None] | None = None,
 ) -> FlashResult:
-    """Flashea una imagen validada. Requiere pyserial y modo bootloader."""
+    """Flashea una imagen validada, sin reintentos automáticos."""
     inspect_image(image)
     dry_run(image)
+    if not 0.5 <= timeout <= 30.0:
+        raise FirmwareError("El timeout debe estar entre 0,5 y 30 segundos")
     try:
         import serial
     except ImportError as exc:
         raise FirmwareError("Falta pyserial; instala el extra 'serial'") from exc
+
+    def write_all(ser, data: bytes, stage: str) -> None:
+        written = ser.write(data)
+        if written != len(data):
+            raise FirmwareError(f"Escritura parcial en {stage}: {written}/{len(data)} bytes")
+        ser.flush()
 
     def wait_ack(ser, stage: str) -> None:
         deadline = time.monotonic() + timeout
@@ -98,20 +109,22 @@ def flash(
             ser.dtr = True
             ser.reset_input_buffer()
             ser.reset_output_buffer()
-            # El programa original emite CONNECT tres veces y espera ACK cada vez.
+            # Secuencia y pausas conservadoras del programa original; sin reintentos.
             for attempt in range(1, 4):
-                ser.write(CONNECT)
-                ser.flush()
+                write_all(ser, CONNECT, f"CONNECT {attempt}/3")
                 wait_ack(ser, f"CONNECT {attempt}/3")
-            ser.write(UPDATE)
-            ser.flush()
+                if attempt < 3:
+                    time.sleep(CONNECT_DELAY)
+            write_all(ser, UPDATE, "UPDATE")
             wait_ack(ser, "UPDATE")
+            time.sleep(UPDATE_DELAY)
             for index, offset in enumerate(range(0, len(image), BLOCK_SIZE), 1):
-                ser.write(build_data_packet(image, offset))
-                ser.flush()
+                write_all(ser, build_data_packet(image, offset), f"bloque {index}/{BLOCK_COUNT}")
                 wait_ack(ser, f"bloque {index}/{BLOCK_COUNT}")
                 if progress:
                     progress(index, BLOCK_COUNT)
+                if index < BLOCK_COUNT:
+                    time.sleep(BLOCK_DELAY)
     except FirmwareError:
         raise
     except (OSError, serial.SerialException) as exc:

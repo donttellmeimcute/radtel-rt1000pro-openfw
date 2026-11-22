@@ -23,6 +23,18 @@ Las variantes `open-rx`, `airband-tx` y `open-rx-airband-tx` se han validado ún
 
 Si no dispones de recuperación, lo prudente es no flashear esta versión experimental.
 
+## Procedimiento conservador incorporado
+
+1. Para Airband, utiliza solamente `airband-tx`: dos bytes cambiados, sin acumular los parches de `open-rx`.
+2. Ejecuta `rt1000pro preflight IMAGEN` y comprueba manualmente que el perfil y SHA-256 son los esperados.
+3. El flasheo exige `--recovery-confirmed` y `--power-confirmed`, además del modelo y la aceptación del riesgo.
+4. Airband exige también `--authorized-airband`.
+5. Cada escritura debe completarse y recibir ACK; un envío parcial, respuesta inesperada o timeout detiene el proceso.
+6. Se aplican pausas conservadoras equivalentes a las del actualizador original y no se reintenta automáticamente.
+7. Se espera ACK incluso del último bloque. No existe lectura posterior de la flash: el ACK no demuestra que toda la ejecución sea correcta.
+
+Las confirmaciones no son comprobaciones físicas. Si no has realizado realmente el respaldo y la restauración de prueba, no uses esas opciones.
+
 ## Riesgo específico de Airband
 
 Los perfiles `airband-tx` y `open-rx-airband-tx` eliminan una comprobación de software asociada al modo aeronáutico. Esto no certifica que el equipo cumpla la normativa de emisión, estabilidad, espectro o modulación aeronáutica.
