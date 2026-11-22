@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rt1000pro-openfw"
+version = "0.1.0"
+description = "Herramientas abiertas de análisis, parcheo y actualización para Radtel RT-1000Pro"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "rt1000pro-openfw contributors"}]
+dependencies = []
+
+[project.optional-dependencies]
+serial = ["pyserial>=3.5"]
+dev = ["pytest>=8", "pyserial>=3.5"]
+
+[project.scripts]
+rt1000pro = "rt1000pro.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

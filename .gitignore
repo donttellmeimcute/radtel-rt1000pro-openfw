@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Imágenes propietarias y artefactos locales: no publicar accidentalmente.
+*.bin
+*.hex
+*.exe
+*.zip
+!tests/fixtures/*.hex
