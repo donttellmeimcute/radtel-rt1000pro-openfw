@@ -34,7 +34,7 @@ def _records(text: str):
         raise FirmwareError("El Intel HEX debe comenzar por ':'.")
     for number, encoded in enumerate(compact.split(":")[1:], 1):
         if not encoded:
-            continue
+            raise FirmwareError("Registro vacío")
         try:
             raw = bytes.fromhex(encoded)
         except ValueError as exc:
@@ -61,29 +61,37 @@ def decode_intel_hex(
     eof = False
     count = 0
     for count, raw in _records(text):
+        if eof:
+            raise FirmwareError("Datos después de EOF")
         length = raw[0]
         address = int.from_bytes(raw[1:3], "big")
         kind = raw[3]
         data = raw[4:-1]
         if kind == 0x00:
             absolute = upper + address
+            if length and (absolute < base or absolute + length > base + size):
+                raise FirmwareError(f"Datos fuera de flash en 0x{absolute:08X}")
             for index, value in enumerate(data):
                 location = absolute + index
                 if location in memory and memory[location] != value:
                     raise FirmwareError(f"Solapamiento contradictorio en 0x{location:08X}")
                 memory[location] = value
         elif kind == 0x01:
+            if length != 0 or address != 0:
+                raise FirmwareError("Registro EOF inválido")
             eof = True
         elif kind == 0x02:
-            if length != 2:
+            if length != 2 or address != 0:
                 raise FirmwareError("Registro de segmento inválido")
             upper = int.from_bytes(data, "big") << 4
         elif kind == 0x04:
-            if length != 2:
+            if length != 2 or address != 0:
                 raise FirmwareError("Registro de dirección lineal inválido")
             upper = int.from_bytes(data, "big") << 16
         elif kind in (0x03, 0x05):
-            pass  # Direcciones de entrada: no afectan al contenido de flash.
+            if length != 4 or address != 0:
+                raise FirmwareError("Registro de entrada inválido")
+            # Direcciones de entrada: no afectan al contenido de flash.
         else:
             raise FirmwareError(f"Tipo de registro no soportado: 0x{kind:02X}")
     if not eof:
