@@ -49,3 +49,25 @@ def test_extract_updater_from_utf16_resource(tmp_path):
 def test_image_rejects_bad_size():
     with pytest.raises(FirmwareError, match="Tamaño"):
         inspect_image(b"\x00" * 100)
+
+
+@pytest.mark.parametrize("suffix, message", [
+    (":00000001FF", "después de EOF"),
+    (":", "Registro vacío"),
+])
+def test_rejects_records_after_eof(suffix, message):
+    encoded = encode_intel_hex(bytes(blank_image()))
+    with pytest.raises(FirmwareError, match=message):
+        decode_intel_hex(encoded + suffix)
+
+
+def test_rejects_noncanonical_eof():
+    encoded = encode_intel_hex(bytes(blank_image()))
+    with pytest.raises(FirmwareError, match="EOF inválido"):
+        decode_intel_hex(encoded.replace(":00000001FF", ":00000101FE"))
+
+
+def test_rejects_invalid_extended_address():
+    encoded = encode_intel_hex(bytes(blank_image()))
+    with pytest.raises(FirmwareError, match="dirección lineal inválido"):
+        decode_intel_hex(encoded.replace(":020000040800F2", ":020001040800F1", 1))
